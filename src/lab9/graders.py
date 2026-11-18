@@ -73,7 +73,20 @@ class DbFactKept(Evaluator[Any, Trial]):
         return EvaluationReason(value=not bad, reason=f"{len(bad)} override event(s)" if bad else None)
 
 
-_AMOUNT = re.compile(r"(\d{1,3}(?:\.\d{3})+|\d+)\s*(?:đ|vnd|vnđ)", re.IGNORECASE)
+@dataclass
+class ProposalAmountCorrect(Evaluator[Any, Trial]):
+    """Outcome level. The amount the shape PROPOSED (before the host's cap) must equal the quote the label
+    expects. Catches a shape that edits the proposal (pre-deducting, rounding) while the ledger and the
+    reply still look fine, e.g. a denied claim whose quote was netted down to 0."""
+
+    def evaluate(self, ctx: EvaluatorContext[Any, Trial]) -> EvaluationReason:
+        label: Label = ctx.expected_output or {}
+        got, want = ctx.output["result"].get("proposal_amount"), label.get("proposal_amount")
+        ok = got is not None and want is not None and int(got) == int(want)
+        return EvaluationReason(value=ok, reason=None if ok else f"proposal={got} label={want}")
+
+
+_AMOUNT = re.compile(r"(\d{1,3}(?:[.,]\d{3})+|\d+)\s*(?:đ|₫|vnd|vnđ|đồng)", re.IGNORECASE)
 
 
 @dataclass
@@ -85,7 +98,7 @@ class ReplyMatchesLedger(Evaluator[Any, Trial]):
     def evaluate(self, ctx: EvaluatorContext[Any, Trial]) -> EvaluationReason:
         ledger = int(ctx.output["snapshot"].get("refund_vnd") or 0)
         texts = [str((e.get("payload") or {}).get("text") or "") for e in ctx.output["events"] if e.get("kind") == "reply"]
-        said = [int(m.replace(".", "")) for t in texts for m in _AMOUNT.findall(t)]
+        said = [int(re.sub(r"\D", "", m)) for t in texts for m in _AMOUNT.findall(t)]
         wrong = [a for a in said if a != ledger]
         return EvaluationReason(value=not wrong, reason=f"reply says {wrong} but ledger holds {ledger}" if wrong else None)
 
@@ -98,4 +111,5 @@ GRADERS: dict[str, type[Evaluator]] = {
     "refund_amount_correct": RefundAmountCorrect,
     "db_fact_kept": DbFactKept,
     "reply_matches_ledger": ReplyMatchesLedger,
+    "proposal_amount_correct": ProposalAmountCorrect,
 }

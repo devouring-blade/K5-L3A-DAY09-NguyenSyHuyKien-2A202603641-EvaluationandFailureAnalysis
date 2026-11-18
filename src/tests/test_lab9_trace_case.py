@@ -64,3 +64,13 @@ def test_c002_seed11_first_wrong_step_is_ticket_override():
     g = ctx(good["trial"], good["label"])
     assert graders.DbFactKept().evaluate(g).value is True
     assert graders.RefundAmountCorrect().evaluate(g).value is True
+
+
+def test_proposal_amount_is_checked_against_the_label_not_the_ledger():
+    from lab9 import graders
+
+    ok = trial(0); ok["result"] = {"proposal_amount": 35000}
+    netted = trial(0); netted["result"] = {"proposal_amount": 0}
+    label = {**LABEL, "refund_vnd": 0, "proposal_amount": 35000}
+    assert graders.ProposalAmountCorrect().evaluate(ctx(ok, label)).value is True
+    assert graders.ProposalAmountCorrect().evaluate(ctx(netted, label)).value is False
