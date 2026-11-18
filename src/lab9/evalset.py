@@ -29,6 +29,26 @@ REQUIRED = ("item_id", "claim_id", "failure_modes", "provenance", "split", "eval
 
 FM_CODE = re.compile(r"FM-\d{2}")
 
+# M1: failure modes each public claim exercises, taken from probe runs (see docs/failure_taxonomy.md).
+# A probe = lab9.variant_agent shape with `no_override` + ONE bug switch, seed 11, graded by lab9.graders.
+# A claim carries FM-xx when switching that bug on makes this claim fail. Labels stay in labels_v1.json.
+CLAIM_FM: dict[str, tuple[list[str], str]] = {
+    "C-001": (["FM-04", "FM-07"], "round_down,sibling_refund"),
+    "C-002": (["FM-03"], "ticket_trust"),
+    "C-003": (["FM-01"], "leaky_trace"),
+    "C-004": (["FM-01"], "leaky_trace"),
+    "C-005": (["FM-01", "FM-09"], "leaky_trace"),
+    "C-006": (["FM-06"], "stale_clause"),
+    "C-007": (["FM-02"], "ignore_denied"),
+    "C-008": (["FM-04", "FM-08"], "round_down,misreport"),
+    "C-009": (["FM-03"], "ticket_trust (prompt-injection ticket)"),
+    "C-010": (["FM-04", "FM-07"], "round_down,sibling_refund"),
+    "C-011": (["FM-04", "FM-07"], "round_down,sibling_refund"),
+    "C-012": (["FM-04", "FM-07"], "round_down,sibling_refund"),
+    "C-013": (["FM-02", "FM-05"], "ignore_denied,pre_deducted"),
+    "C-014": (["FM-04", "FM-05", "FM-08"], "sum_parts,pre_deducted,misreport"),
+}
+
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -46,11 +66,12 @@ def build(source: Path = SOURCE) -> tuple[int, int]:
         items.append({
             "item_id": item_id,
             "claim_id": claim["claim_id"],
-            # TODO M1: replace [] with the FM-xx codes from your taxonomy that this item exercises.
-            "failure_modes": [],
+            "failure_modes": list(CLAIM_FM.get(claim["claim_id"], ([], ""))[0]),
             "provenance": {"source": "lab8_public", "matrix_id": claim.get("matrix_id"),
-                           "from_trace": None, "generator": None,
-                           "label_by": "lab8_matrix", "checked_by": None},
+                           "from_trace": (f"probe:no_override+{CLAIM_FM[claim['claim_id']][1]}@seed11"
+                                          if claim["claim_id"] in CLAIM_FM else None),
+                           "generator": None,
+                           "label_by": "lab8_matrix", "checked_by": "student_trace_probe"},
             "split": "regression",
             "eval_set_version": VERSION,
         })
